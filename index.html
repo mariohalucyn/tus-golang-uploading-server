@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Upload with TUS</title>
+    <script src="https://cdn.jsdelivr.net/npm/tus-js-client@latest/dist/tus.min.js"></script>
+</head>
+<body>
+    <h2>Upload a File</h2>
+    <input type="file" id="fileInput" />
+    <progress id="progressBar" value="0" max="100"></progress>
+    <p id="status"></p>
+    <button id="pauseButton" disabled>Pause</button>
+    <button id="resumeButton" disabled>Resume</button>
+
+    <script>
+        let upload;
+
+        document.getElementById('fileInput').addEventListener('change', function (e) {
+            var file = e.target.files[0];
+            if (!file) return;
+
+            upload = new tus.Upload(file, {
+                endpoint: 'http://localhost:8080/files/',
+                retryDelays: [0, 3000, 5000, 10000, 20000],
+                metadata: {
+                    filename: file.name,
+                    filetype: file.type,
+                },
+                onError: function (error) {
+                    console.log('Failed because: ' + error);
+                    document.getElementById('status').innerText = 'Upload failed: ' + error;
+                },
+                onProgress: function (bytesUploaded, bytesTotal) {
+                    var percentage = ((bytesUploaded / bytesTotal) * 100).toFixed(2);
+                    document.getElementById('progressBar').value = percentage;
+                    document.getElementById('status').innerText = `Uploading... ${percentage}%`;
+                },
+                onSuccess: function () {
+                    console.log('Upload successful: ', upload.file.name, upload.url);
+                    document.getElementById('status').innerText = 'Upload complete!';
+                    document.getElementById('pauseButton').disabled = true;
+                    document.getElementById('resumeButton').disabled = true;
+                },
+            });
+
+            upload.findPreviousUploads().then(function (previousUploads) {
+                if (previousUploads.length) {
+                    upload.resumeFromPreviousUpload(previousUploads[0]);
+                }
+                upload.start();
+                document.getElementById('pauseButton').disabled = false;
+            });
+        });
+
+        document.getElementById('pauseButton').addEventListener('click', function () {
+            if (upload) {
+                upload.abort();
+                document.getElementById('status').innerText = 'Upload paused.';
+                document.getElementById('pauseButton').disabled = true;
+                document.getElementById('resumeButton').disabled = false;
+            }
+        });
+
+        document.getElementById('resumeButton').addEventListener('click', function () {
+            if (upload) {
+                upload.start();
+                document.getElementById('status').innerText = 'Resuming upload...';
+                document.getElementById('pauseButton').disabled = false;
+                document.getElementById('resumeButton').disabled = true;
+            }
+        });
+    </script>
+</body>
+</html>
